@@ -1,0 +1,65 @@
+# Para instalar librerias:
+# 1. Cambia a la carpeta de Python 3.12 (opcional)
+# cd "C:\Users\marco\AppData\Local\Programs\Python\Python312"
+
+# 2. Instala numpy en Python 3.12 usando pip
+# .\python.exe -m pip install numpy
+
+# 3. Comprueba que numpy está instalado
+# .\python.exe -m pip show numpy
+
+# 4. Ejecuta tu script con Python 3.12
+# .\python.exe "c:\Users\marco\Desktop\Marco\Python\Github practise\script.py"
+
+
+On VSCode terminal
+Video: https://www.youtube.com/watch?v=mJ-qvsxPHpY
+
+
+Para proyectos en equipo
+    Uno lo sube con push
+    El otro hace primero un pull (se mergean si no hay conflictos) para poder hacer su push
+
+
+Clone github repo
+    git clone linkOfRepo [Press "Code" button and then HTTPS]
+
+Start git
+    git init
+    // Create github repo on google
+    git remote add origin [repo, https://github.com/codeMGL/My-First-Repo.git]
+
+Save progress
+    git add [file, index.html]/[everything, .]
+    git commit -m "message"
+
+Push changes into github
+    git push -u origin [branch, main]
+// Si entra en conflicto (si hay un README?):
+    git checkout main (para ir a ese branch)
+    git pull origin main --rebase (compara cambios?)
+    git push -u origin main
+
+Pull changes from github // Both commands? Just first? Just second?
+    git reset --hard HEAD
+    git pull origin [branch, main]
+
+Remove files
+    rm [file, index.html]
+
+Add files
+    '' > [file, app.js]       or
+    echo > [file, app.js]
+
+Log saves
+    git log
+    git status --> Check status of all changes
+
+Go back to another save, creates a different branch
+    git checkout [hashcode, 8143367baf05103275d52f36078279de525aa3ac]
+
+Create new branch
+    git checkout -b [branchName, new-branch]
+
+See branches
+    git branch
