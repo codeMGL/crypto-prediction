@@ -4,7 +4,7 @@ from utils.functions import unNormalizeData
 
 class NeuralNetwork:
 
-    def __init__(self, layers, data_num, learningRate):
+    def __init__(self, layers, data_num, learningRate=0.05):
         # Weights and biases connect a layer and the next one
         self.w = []
         self.b = []
@@ -29,6 +29,7 @@ class NeuralNetwork:
         # for j in range(len(self.b)):
         #     print(self.b[j].shape, end=" ")
         # print()
+        self.layers = layers
         self.len = len(layers)
 
         # -- Inicializing the lists storing every layer matrix --
@@ -43,6 +44,52 @@ class NeuralNetwork:
         self.dw = [None] * (len(layers))
         self.db = [None] * (len(layers))
 
+    def save(self, name) -> None:
+        print("w", end=" ")
+        for i in range(len(self.w)):
+            print(self.w[i].shape, end=" ")
+        print("\nb", end=" ")
+        for j in range(len(self.b)):
+            print(self.b[j].shape, end=" ")
+        print()
+        w = self.w.copy()
+        b = self.b.copy()
+        with open(f"{name}.txt", "w") as f:
+            txt = self.toStr(w, "Weights")
+            f.write(str(txt) + "\n")
+            txt = self.toStr(b, "Biases")
+            f.write(str(txt) + "\n")
+        print("\nData loaded correctly")
+        print("="* 10, "\nFALTA LR, LAYERS? Y NUM? Y NORM_PARAMS")
+        print(self)
+
+    def toStr(self, arr, name=""):
+        # Params: arr of weigths or biases
+        print(f"To str. Len:", len(arr))
+        txt = f"{name}"
+        for matrix in arr:
+            shape = f"{matrix.shape[0]:03.0f}; {matrix.shape[1]:03.0f}"
+            txt += f"\n\n{name[0]} ({shape})\n"
+            for i in range(matrix.shape[0]):
+                for j in range(matrix.shape[1]):
+                    txt += str(matrix[i][j]) + ", "
+                txt = txt[:-2] + "\n"
+        return txt
+
+    def __str__(self):
+        txt = "MODEL:\n W: "
+        for i in range(len(self.w)):
+            txt += f"{self.w[i].shape}, "
+        txt = txt[:-2]
+        txt += "\n B:"
+        for j in range(len(self.b)):
+            txt += f"{self.b[j].shape}, "
+        txt = txt[:-2]
+        txt += f"\n Learning rate: {self.lr}  Layers: {self.layers} Data length (m): {self.m}"
+        # print("w", self.w[0], self.w[1])
+        # print("b", self.b[0], self.b[1])
+        return txt
+
     def train(self, X_train, Y_train, X_test, Y_test, norm_price, steps) -> None:
         # print("TRAINING...")
         for step in range(steps):
@@ -51,7 +98,6 @@ class NeuralNetwork:
             if (step - 1) % int(steps / 10) == 0:
                 # Testing
                 self.test(X_test, Y_test, norm_price, step - 1)
-
 
     # Forwards propagation
     def feedForward(self, inputs):
@@ -87,7 +133,7 @@ class NeuralNetwork:
             # or the output of each layer (z) applying the inverse act. fn
             if i == last:
                 # Derivada: (pred - true) * sigmoid'(z) ERROR, SIN sigmoid_prime
-                self.dz[i] = (self.a[i] - outMatrix)
+                self.dz[i] = self.a[i] - outMatrix
             else:
                 w_T = np.transpose(self.w[i])
                 self.dz[i] = np.dot(w_T, self.dz[i + 1])
@@ -128,21 +174,25 @@ class NeuralNetwork:
 
         rmse_real = np.sqrt(np.mean((Y_test_real - predictions_real) ** 2))
         mae_real = np.mean(np.abs(Y_test_real - predictions_real))
-        mape = np.mean(np.abs((Y_test_real - predictions_real) / (np.abs(Y_test_real) + 1e-10))) * 100
-
+        mape = (
+            np.mean(
+                np.abs((Y_test_real - predictions_real) / (np.abs(Y_test_real) + 1e-10))
+            )
+            * 100
+        )
 
         mape = (
-            np.mean(np.abs((Y_test_real - predictions_real) / (Y_test_real + 1e-10))) * 100
+            np.mean(np.abs((Y_test_real - predictions_real) / (Y_test_real + 1e-10)))
+            * 100
         )
         if step != -1:
             print(f"\nItineration {step}")
-        print(
-            f"Normalized:   MSE: {mse_norm:05.4f}       MAE: {mae_norm:05.4f} \t"
-        )
+        print(f"Normalized:   MSE: {mse_norm:05.4f}       MAE: {mae_norm:05.4f} \t")
         print(
             f"Real scale:   RMSE: {rmse_real:05.4f}$   MAE: {mae_real:05.4f}$   MAPE: {mape:05.4f}%"
         )
-        if step == -1: print("MSE < 0.01        MAE < 0.03       MAPE < 10%")
+        if step == -1:
+            print("MSE < 0.01        MAE < 0.03       MAPE < 10%")
 
     def ReLU(self, matrix, i):
         activated_matrix = matrix.copy()
