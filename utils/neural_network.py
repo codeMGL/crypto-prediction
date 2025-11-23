@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from utils.functions import unNormalizeData
 
 
@@ -11,6 +12,7 @@ class NeuralNetwork:
         self.lr = learningRate
         # Number of samples
         self.m = data_num
+        # Weights and biases intialization
         for i in range(len(layers) - 1):
             # self.w.append(np.random.rand(layers[i + 1], layers[i]))
             # self.b.append(np.random.rand(layers[i + 1], 1))
@@ -19,7 +21,6 @@ class NeuralNetwork:
             self.w.append(
                 np.random.randn(layers[i + 1], layers[i]) * np.sqrt(2.0 / layers[i])
             )
-            # Para bias
             self.b.append(np.zeros((layers[i + 1], 1)))
 
         # print("w")
@@ -44,7 +45,9 @@ class NeuralNetwork:
         self.dw = [None] * (len(layers))
         self.db = [None] * (len(layers))
 
-    def save(self, name) -> None:
+    def saveModel(self, name, norm_price) -> None:
+        print("Saving model")
+        # print("norm_price", norm_price)
         print("w", end=" ")
         for i in range(len(self.w)):
             print(self.w[i].shape, end=" ")
@@ -55,15 +58,37 @@ class NeuralNetwork:
         w = self.w.copy()
         b = self.b.copy()
         with open(f"{name}.txt", "w") as f:
-            txt = self.toStr(w, "Weights")
+            # Weights and biases
+            txt = self.matrixToStr(w, "Weights")
             f.write(str(txt) + "\n")
-            txt = self.toStr(b, "Biases")
+            txt = self.matrixToStr(b, "Biases")
             f.write(str(txt) + "\n")
+            # Layers
+            # TO DO: Hace falta parsearlos?
+            txt = "Layers\n"
+            for layer in self.layers:
+                txt += f"{layer:03.0f}, "
+            txt = txt[:-2]
+            f.write(txt + "\n")
+            # Data number
+            txt = f"\nData number\n{self.m:05.0f}"
+            f.write(txt + "\n")
+            # Normalising parameters
+            print(f"Norm price: {norm_price}")
+            txt = "\nX_mins\n"
+            for mins in norm_price["X_mins"]:
+                txt += str(mins) + ", "
+            txt = txt[:-2] + "\nX_maxs\n"
+            for maxs in norm_price["X_maxs"]:
+                txt += str(maxs) + ", "
+            txt = txt[:-2] + "\n"
+            txt += f"Y_min\n{norm_price["Y_min"]}\nY_max\n{norm_price["Y_max"]}"
+            f.write(txt)
+
         print("\nData loaded correctly")
-        print("="* 10, "\nFALTA LR, LAYERS? Y NUM? Y NORM_PARAMS")
         print(self)
 
-    def toStr(self, arr, name=""):
+    def matrixToStr(self, arr, name=""):
         # Params: arr of weigths or biases
         print(f"To str. Len:", len(arr))
         txt = f"{name}"
@@ -85,19 +110,21 @@ class NeuralNetwork:
         for j in range(len(self.b)):
             txt += f"{self.b[j].shape}, "
         txt = txt[:-2]
-        txt += f"\n Learning rate: {self.lr}  Layers: {self.layers} Data length (m): {self.m}"
+        txt += f"\n Learning rate: {self.lr}  Layers: {self.layers} Training data length (m): {self.m}"
         # print("w", self.w[0], self.w[1])
         # print("b", self.b[0], self.b[1])
         return txt
 
     def train(self, X_train, Y_train, X_test, Y_test, norm_price, steps) -> None:
-        # print("TRAINING...")
+        t = time.time()
         for step in range(steps):
             self.feedForward(X_train)
             self.backwardsPropagation(Y_train)
             if (step - 1) % int(steps / 10) == 0:
                 # Testing
-                self.test(X_test, Y_test, norm_price, step - 1)
+                self.test(X_train, Y_train, X_test, Y_test, norm_price, step - 1)
+                print(f"Time elapsed: {np.round(time.time() - t, 2)} seconds")
+                t = time.time()
 
     # Forwards propagation
     def feedForward(self, inputs):
@@ -109,14 +136,15 @@ class NeuralNetwork:
             self.z[i] = np.dot(self.w[i - 1], self.a[i - 1])
             self.z[i] = np.add(self.z[i], self.b[i - 1])
             # Applying the activation function
-            # if i != self.len: ERROR
+            # if i != self.len:
+            # ERROR en el código antiguo
             if i < self.len - 1:
                 # ReLU for intermediate layers
                 self.a[i] = self.ReLU(self.z[i], i)
             else:
+                # ERROR en el codigo antiguo: Sin activación
                 # Applying softmax to the output layer
                 # a[i] = self.softmax(z[i])
-                # ERROR: Sin activación
                 self.a[i] = self.sigmoid(self.z[i])
 
         return self.a[self.len - 1]
@@ -132,7 +160,7 @@ class NeuralNetwork:
             # Substracting the output minus the correct data (outMatrix)
             # or the output of each layer (z) applying the inverse act. fn
             if i == last:
-                # Derivada: (pred - true) * sigmoid'(z) ERROR, SIN sigmoid_prime
+                # Derivada: (pred - true) * sigmoid'(z) ERROR, SIN sigmoid_prime DA IGUAL?
                 self.dz[i] = self.a[i] - outMatrix
             else:
                 w_T = np.transpose(self.w[i])
@@ -149,13 +177,77 @@ class NeuralNetwork:
             self.w[n] -= self.lr * self.dw[n + 1]
             self.b[n] -= self.lr * self.db[n + 1]
 
-    def test(self, X_test, Y_test, norm_price, step=-1) -> None:
+    # Tests model accuracy
+    def test(self, X_train, Y_train, X_test, Y_test, norm_price, step=-1) -> None:
+        # Verifying both on train and test data to prevent overfitting
+
+        # Normalized predictions
+        pred_norm_train = self.feedForward(X_train)
+        pred_norm_test = self.feedForward(X_test)
+
+        # Normalized errors
+        mse_norm_train = np.mean((pred_norm_train - Y_train) ** 2)
+        mae_norm_train = np.mean(np.abs(pred_norm_train - Y_train))
+
+        mse_norm_test = np.mean((pred_norm_test - Y_test) ** 2)
+        mae_norm_test = np.mean(np.abs(pred_norm_test - Y_test))
+
+        # Real prediction metrics
+        pred_real_train = unNormalizeData(pred_norm_train, norm_price)
+        Y_real_train = unNormalizeData(Y_train, norm_price)
+
+        pred_real_test = unNormalizeData(pred_norm_test, norm_price)
+        Y_real_test = unNormalizeData(Y_test, norm_price)
+
+        # Real errors
+        mse_real_train = np.mean((Y_real_train - pred_real_train) ** 2)
+        rmse_real_train = np.sqrt(mse_real_train)
+        mae_real_train = np.mean(np.abs(Y_real_train - pred_real_train))
+        mape_train = (
+            np.mean(
+                np.abs(
+                    (Y_real_train - pred_real_train) / (np.abs(Y_real_train) + 1e-10)
+                )
+            )
+            * 100
+        )
+
+        mse_real_test = np.mean((Y_real_test - pred_real_test) ** 2)
+        rmse_real_test = np.sqrt(mse_real_test)
+        mae_real_test = np.mean(np.abs(Y_real_test - pred_real_test))
+        mape_test = (
+            np.mean(
+                np.abs((Y_real_test - pred_real_test) / (np.abs(Y_real_test) + 1e-10))
+            )
+            * 100
+        )
+
+        if step != -1:
+            print(f"\n--- Itineration {step} ---")
+        print(
+            f"Normalized (Train):   MSE: {mse_norm_train:05.4f}       MAE: {mae_norm_train:05.4f}"
+        )
+        print(
+            f"Normalized (Test):    MSE: {mse_norm_test:05.4f}       MAE: {mae_norm_test:05.4f}"
+        )
+        print(
+            f"Real scale (Train):   RMSE: {rmse_real_train:05.4f}$   MAE: {mae_real_train:05.4f}$   MAPE: {mape_train:05.4f}%"
+        )
+        print(
+            f"Real scale (Test):    RMSE: {rmse_real_test:05.4f}$   MAE: {mae_real_test:05.4f}$   MAPE: {mape_test:05.4f}%"
+        )
+        if step == -1:
+            print("MSE < 0.01      MAE < 0.03       MAPE < 10%")
+
+    # Testing with 2025 data
+    def testRealData(self, X_test, Y_test, norm_price, step=-1) -> None:
         """
         Args:
             X_test: NORMALIZADO
             Y_test: NORMALIZADO
             norm_price: dict con min/max para desnormalizar
         """
+        # print("\nnorm_price", norm_price)
         # Normalized metrics
         predictions_norm = self.feedForward(X_test)
 
@@ -191,8 +283,6 @@ class NeuralNetwork:
         print(
             f"Real scale:   RMSE: {rmse_real:05.4f}$   MAE: {mae_real:05.4f}$   MAPE: {mape:05.4f}%"
         )
-        if step == -1:
-            print("MSE < 0.01        MAE < 0.03       MAPE < 10%")
 
     def ReLU(self, matrix, i):
         activated_matrix = matrix.copy()
@@ -203,6 +293,7 @@ class NeuralNetwork:
                 activated_matrix[i][j] = 0 if elt < 0 else elt
         return activated_matrix
 
+    # "ERRORes": Modificar la matriz original
     def ReLU_prime(self, matrix):
         # As ReLU outputs a straight line, its derivative is 1 if x > 0
         # Using numpy: return (Z > 0).astype(float)

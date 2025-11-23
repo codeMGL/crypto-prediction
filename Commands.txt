@@ -35,6 +35,7 @@ Save progress
 
 Push changes into github
     git push -u origin [branch, main]
+    
 // Si entra en conflicto (si hay un README?):
     git checkout main (para ir a ese branch)
     git pull origin main --rebase (compara cambios?)

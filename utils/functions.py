@@ -4,41 +4,43 @@ import random
 
 # Metadata: Date
 # Target: Close
+# CloseN refers to the closing price if the N previous days
+model_headers = {
+    "X": ["Open", "High", "Low", "Volume", "Close1", "Close2", "Close3"],
+    "Y": ["Close"],
+}
+# Good headers to take info from
 good_headers = ["Date", "Open", "High", "Low", "Close", "Volume"]
 
 
-def loadRealData(file):
-    raw = pd.read_csv(file, sep=";", header=0)
-    data = rawToData(raw)
-    print("Real data length:", len(data))
-    return parseRealData(data)
+def reverseCSV(file):
+    # Read the CSV file
+    data = pd.read_csv(file, sep=",", header=0)
+    print("REVERSING")
+    print(data.head())
+
+    # Reverse the data
+    reversed_data = data.iloc[::-1]
+
+    # Save the reversed data to a new file
+    reversed_data.to_csv("reversed_data.csv", index=False)
+    print("Reversed data saved to 'reversed_data.csv'")
+    print("-- END --")
 
 
-def parseRealData(data):
-    X = np.zeros((len(data), 5))
-    Y = np.zeros(
-        len(data),
-    )
-    for i in range(len(data)):
-        count = 0
-        for head in good_headers:
-            elt = data[i][head]
-            if head != "Date":
-                # Close Price
-                if head != "Close":
-                    X[i][count] = elt
-                    count += 1
-                else:
-                    Y[i] = elt
-
-    return X.T, Y.T
-
-
+# -- Loading and parsing data for training --
 def loadData(DATA_SPLIT):
     # raw = np.loadtxt(file)
     # print(f"Raw data: {raw}")
-    # files = ["data/ETH_Day_2017-2022.csv",
-    files = ["data/ETH_Day_2024-2025.csv"]
+    ALL_FILES = [
+        "data/ETH_Day_2017-2022.csv",
+        "data/ETH_Day_2017-2024.csv",
+        "data/ETH_Day_2021-2024.csv",
+        "data/ETH_Day_2024.csv",
+        # "data/ETH_Day_2024-2025.csv",
+    ]
+    # files = [ALL_FILES[1], ALL_FILES[2]]
+    files = [ALL_FILES[2], ALL_FILES[3]]
     data = []
     for file in files:
         raw = pd.read_csv(file, sep=",", header=0)
@@ -51,6 +53,173 @@ def loadData(DATA_SPLIT):
     random.shuffle(data)
     print("Data length:", len(data))
     return parseData(data, DATA_SPLIT)
+
+
+# Transforms data file into a clean dictionary including all Xs and Ys used by the model
+def rawToData(raw):
+    raw_dicts = raw.to_dict(orient="records")
+    headers = raw_dicts[0].keys()
+    # print(f"First date: {raw_dicts[0]["Date"]} Second date: {raw_dicts[1]["Date"]}")
+    # print("!!! Second date MUST be older than first date !!!")
+
+    data = []
+    for i in range(len(raw_dicts)):
+        # Row (Dict) contaning the day data of ETH
+        day_data = raw_dicts[i]
+        clean_dict = {}
+        all_headers= model_headers["X"].copy()
+        all_headers.extend(model_headers["Y"])
+        for head in all_headers:
+            # Adding headers that are part of the data file headers
+            if head in headers:
+                # Adding data from current day
+                val = day_data[head]
+                if isinstance(day_data[head], str):
+                    # Deleting thousands comma
+                    val = val.replace(",", "")
+                    # Changing volume values from "50K" to 50_000
+                    if head == "Volume":
+                        # Deleting decimal point
+                        val = day_data[head].replace(".", "")
+                        if "K" in val:
+                            new_volume = float(val[:-1]) * 1e3
+                        elif "M" in val:
+                            new_volume = float(val[:-1]) * 1e6
+                        else:
+                            new_volume = float(val[:-1])
+                        # Multiplying volume (parsed as float) by ETH price
+                        val = new_volume * float(day_data["Close"].replace(",", ""))
+                # Adding the parsed data to the clean dict
+                if head == "Date":
+                    clean_dict[head] = val
+                else:
+                    clean_dict[head] = float(val)
+            else:
+                # Adding close prices for previous days (lower indices)
+                if head[:5] == "Close" and len(head) > 5:
+                    past_index = int(head[5])
+                    if i - past_index >= 0:
+                        # Adds data as a float
+                        val = raw_dicts[i - past_index]["Close"]
+                        if isinstance(val, str):
+                            val = val.replace(",", "")
+                            val = float(val)
+                    else:
+                        # There are no previous values available
+                        val = 0.0
+                    # Adding the parsed data to the clean dict
+                    clean_dict[head] = val
+
+        data.append(clean_dict)
+    return data
+
+
+def parseData(data, DATA_SPLIT):
+    # Separating in Xs and Ys
+    # print("\n-- PARSING DATA --")
+    X = np.zeros((len(data), len(model_headers["X"])))
+    Y = np.zeros((len(data), len(model_headers["Y"])))
+    # print("Shapes", X.shape, Y.shape)
+    # Data is a list of dictionaries containg every row of prices
+    for i in range(len(data)):
+        count = 0
+        # Not adding Date and Symbol (they're not in model_headers)
+        row = []
+        all_headers = model_headers["X"].copy()
+        all_headers.extend(model_headers["Y"])
+        for head in all_headers:
+            # Separating the target variable (Close)
+            if head != "Close":
+                # Adding 'head' data (into a list) to the Xs
+                row.append(data[i][head])
+            else:
+                # Adding target value ("Close") to the Ys
+                elt = data[i][head]
+                Y[i] = elt
+        # print("i", i, "row", row)
+        X[i] = row
+        count += 1
+
+    # print("X", X.shape, "Y", Y.shape)
+    # print("\n---- DATA ----\n")
+    # print(X[:2])
+    # print(X.T[:2])
+    # print("Y")
+    # print(Y[:2])
+    # print(Y.T[:2])
+
+    # Splitting the data, dividing by percentage
+    training = int(len(data) * DATA_SPLIT / 100)
+
+    X_train = X[:training].T
+    X_test = X[training:].T
+    Y_train = Y[:training].T
+    Y_test = Y[training:].T
+
+    return X_train, X_test, Y_train, Y_test
+
+
+# -- Loading and parsing real data for validation --
+def loadRealData(file):
+    raw = pd.read_csv(file, sep=";", header=0)
+    data = rawToData(raw)
+    print("Real data length:", len(data))
+    return parseRealData(data)
+
+
+def parseRealData(data):
+    X = np.zeros((len(data), len(model_headers["X"])))
+    Y = np.zeros(
+       ( len(data), len(model_headers["Y"]))
+    )
+    print("Shapes:", X.shape, Y.shape)
+
+    # DEBUG: Probably can be condensed and optimised with array functions + numpy
+    for i in range(len(data)):
+        count = 0
+        for head in good_headers:
+            # DEBUG: Head is not included in 'data', but it is in good_headers
+            if head != "Date":
+                # print(i, "data", data[i])
+                elt = data[i][head]
+                # Close Price
+                if head != "Close":
+                    # if head[:4] == "Close":
+                    #     past_index = int(head[5])
+                    #     print("i", i,data[i - 2: i + 2])
+                    #     # Older data has a
+                    #     # elt = X[i - ]
+                    # else:
+                    X[i][count] = elt
+                    count += 1
+                else:
+                    Y[i] = elt
+
+    price_diference, sum = [], 0
+    for i in range(len(X)):
+        # Sanitazing output for 1 target. REFACTOR/DEBUG
+        Y_i = Y[i]
+        if isinstance(Y[i], np.ndarray) and len(Y[i]) == 1:
+            Y_i = Y[i][0]
+        diff = Y_i - X[i][0]
+        # print("Open", X[i][0], "Close", Y_i, "diff", diff)
+        price_diference.append(round(diff, 3))
+        sum += diff
+    avg = np.round(sum / len(X), 5)
+    print("\n-- Price difference BETWEEN WHAT???? between 2025 and itself data? --")
+    # print("Price diff (close - open):", price_diference[:20])
+    print(f"Max: {max(price_diference)}$  Min: {min(price_diference)}$  Average: {avg}$")
+    # Abolute value
+    sum = 0
+    for i in range(len(price_diference)):
+        price_diference[i] = abs(price_diference[i])
+        sum += price_diference[i]
+    avg = np.round(sum / len(X), 5)
+    # print("\nPrice diff (Absolute values):", price_diference[:20])
+    print("-- Price difference (Absolute values) --")
+    print(f"Max: {max(price_diference)}$  Min: {min(price_diference)}$  Average: {avg}$")
+
+    return X.T, Y.T
 
 
 # Loading params from text file (weights, biases, layers, norm_params...)
@@ -134,68 +303,6 @@ def loadModel(name):
     return params
 
 
-def rawToData(raw):
-    raw_dicts = raw.to_dict(orient="records")
-    headers = raw_dicts[0].keys()
-
-    data = []
-    for dict in raw_dicts:
-        clean_dict = {}
-        for head in good_headers:
-            # Changing volume values from "50K" to 50_000
-            val = dict[head]
-            if type(dict[head]) == str:
-                # Deleting thousands comma
-                val = val.replace(",", "")
-                if head == "Volume":
-                    # Deleting decimal point
-                    val = dict[head].replace(".", "")
-                    if "K" in val:
-                        new_volume = float(val[:-1]) * 1000
-                    elif "M" in val:
-                        new_volume = float(val[:-1]) * 1000000
-                    else:
-                        new_volume = float(val[:-1])
-                    # Multiplying volume (parsed as float) by ETH price
-                    val = new_volume * float(dict["Close"].replace(",", ""))
-            clean_dict[head] = val
-        data.append(clean_dict)
-    return data
-
-
-def parseData(data, DATA_SPLIT):
-    # Separating in Xs and Ys
-    # print("\nPARSING")
-    X = np.zeros((len(data), 5))
-    Y = np.zeros(
-        len(data),
-    )
-    for i in range(len(data)):
-        count = 0
-        for head in good_headers:
-            elt = data[i][head]
-            # Not adding Date and Symbol
-            if head != "Date":
-                # Close Price
-                if head != "Close":
-                    X[i][count] = elt
-                    count += 1
-                else:
-                    Y[i] = elt
-
-    print("X", X.shape, "Y", Y.shape)
-
-    # Splitting the data, dividing by percentage
-    training = int(len(data) * DATA_SPLIT / 100)
-
-    X_train = X[:training].T
-    X_test = X[training:].T
-    Y_train = Y[:training].T
-    Y_test = Y[training:].T
-
-    return X_train, X_test, Y_train, Y_test
-
-
 # def normalizeData(X, Y):
 #     # Normalizing characteristics
 #     # print("\nNormalizing:")
@@ -267,9 +374,7 @@ def normalizeTrainData(X, Y):
 
 
 def normalizeTestData(X, Y, norm_params):
-    """
-    Normaliza X e Y a rango [0, 1]
-    """
+    # Normaliza X e Y a rango [0, 1]
     X_norm = X.copy()
     Y_norm = Y.copy()
 

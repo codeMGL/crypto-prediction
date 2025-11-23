@@ -62,9 +62,7 @@ class NeuralNetwork:
         self.db = [None] * (len(layers))
 
     def train(self, dataSamples, outputsMatrix, steps=100):
-        # print("TRAINING...")
         if steps <= 0:
-            # print("///////////////////////////////")
             print("Finished training")
             return
         self.feedForward(dataSamples)
