@@ -1,6 +1,7 @@
 import numpy as np
 import time
 from utils.functions import unNormalizeData
+from utils.graph import graph
 
 
 class NeuralNetwork:
@@ -16,8 +17,8 @@ class NeuralNetwork:
         for i in range(len(layers) - 1):
             # self.w.append(np.random.rand(layers[i + 1], layers[i]))
             # self.b.append(np.random.rand(layers[i + 1], 1))
-            # Para ReLU (He initialization)
             # ERROR: Mejora Claude
+            # Para ReLU (He initialization)
             self.w.append(
                 np.random.randn(layers[i + 1], layers[i]) * np.sqrt(2.0 / layers[i])
             )
@@ -115,16 +116,34 @@ class NeuralNetwork:
         # print("b", self.b[0], self.b[1])
         return txt
 
-    def train(self, X_train, Y_train, X_test, Y_test, norm_price, steps) -> None:
+    def train(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, total_steps) -> None:
         t = time.time()
-        for step in range(steps):
+        for step in range(total_steps):
             self.feedForward(X_train)
             self.backwardsPropagation(Y_train)
-            if (step - 1) % int(steps / 10) == 0:
-                # Testing
-                self.test(X_train, Y_train, X_test, Y_test, norm_price, step - 1)
+            # if (step - 1) % int(total_steps / 10) == 0:
+            if step % (total_steps // 20) == 0 or step == total_steps - 1:
+                # Testing and ploting data
+                self.test(X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step - 1)
                 print(f"Time elapsed: {np.round(time.time() - t, 2)} seconds")
                 t = time.time()
+
+    # NOT USED / REFACTOR: Weights and layers doesn't match up
+    def trainBatches(
+        self, X_train, Y_train, X_test, Y_test, norm_price, batchSize, epochs
+    ) -> None:
+        t = time.time()
+        for epoch in range(epochs):
+            for i in range(0, self.m, batchSize):
+                X_batch = X_train[i : i + batchSize]
+                Y_batch = Y_train[i : i + batchSize]
+                self.feedForward(X_batch)
+                self.backwardsPropagation(Y_batch)
+                if (epoch - 1) % int(epochs / 10) == 0:
+                    # Testing
+                    self.test(X_train, Y_train, X_test, Y_test, norm_price, epoch - 1)
+                    print(f"Time elapsed: {np.round(time.time() - t, 2)} seconds")
+                    t = time.time()
 
     # Forwards propagation
     def feedForward(self, inputs):
@@ -178,12 +197,13 @@ class NeuralNetwork:
             self.b[n] -= self.lr * self.db[n + 1]
 
     # Tests model accuracy
-    def test(self, X_train, Y_train, X_test, Y_test, norm_price, step=-1) -> None:
+    def test(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step=-1) -> None:
         # Verifying both on train and test data to prevent overfitting
 
         # Normalized predictions
         pred_norm_train = self.feedForward(X_train)
         pred_norm_test = self.feedForward(X_test)
+        pred_norm_test2 = self.feedForward(X_test2)
 
         # Normalized errors
         mse_norm_train = np.mean((pred_norm_train - Y_train) ** 2)
@@ -192,12 +212,18 @@ class NeuralNetwork:
         mse_norm_test = np.mean((pred_norm_test - Y_test) ** 2)
         mae_norm_test = np.mean(np.abs(pred_norm_test - Y_test))
 
+        mse_norm_test2 = np.mean((pred_norm_test2 - Y_test2) ** 2)
+        mae_norm_test2 = np.mean(np.abs(pred_norm_test2 - Y_test2))
+
         # Real prediction metrics
         pred_real_train = unNormalizeData(pred_norm_train, norm_price)
         Y_real_train = unNormalizeData(Y_train, norm_price)
 
         pred_real_test = unNormalizeData(pred_norm_test, norm_price)
         Y_real_test = unNormalizeData(Y_test, norm_price)
+
+        pred_real_test2 = unNormalizeData(pred_norm_test2, norm_price)
+        Y_real_test2 = unNormalizeData(Y_test2, norm_price)
 
         # Real errors
         mse_real_train = np.mean((Y_real_train - pred_real_train) ** 2)
@@ -221,6 +247,15 @@ class NeuralNetwork:
             )
             * 100
         )
+        mse_real_test2 = np.mean((Y_real_test2 - pred_real_test2) ** 2)
+        rmse_real_test2 = np.sqrt(mse_real_test2)
+        mae_real_test2 = np.mean(np.abs(Y_real_test2 - pred_real_test2))
+        mape_test2 = (
+            np.mean(
+                np.abs((Y_real_test2 - pred_real_test2) / (np.abs(Y_real_test2) + 1e-10))
+            )
+            * 100
+        )
 
         if step != -1:
             print(f"\n--- Itineration {step} ---")
@@ -231,13 +266,37 @@ class NeuralNetwork:
             f"Normalized (Test):    MSE: {mse_norm_test:05.4f}       MAE: {mae_norm_test:05.4f}"
         )
         print(
+            f"Norm (Test 2025):     MSE: {mse_norm_test2:05.4f}       MAE: {mae_norm_test2:05.4f}"
+        )
+        print(
             f"Real scale (Train):   RMSE: {rmse_real_train:05.4f}$   MAE: {mae_real_train:05.4f}$   MAPE: {mape_train:05.4f}%"
         )
         print(
             f"Real scale (Test):    RMSE: {rmse_real_test:05.4f}$   MAE: {mae_real_test:05.4f}$   MAPE: {mape_test:05.4f}%"
         )
+        print(
+            f"Real (Test 2025):     RMSE: {rmse_real_test2:05.4f}$   MAE: {mae_real_test2:05.4f}$   MAPE: {mape_test2:05.4f}%"
+        )
         if step == -1:
             print("MSE < 0.01      MAE < 0.03       MAPE < 10%")
+
+        # REFACTOR, no se pintan todos los errores
+        graph.updateAndPlot(
+            mse_norm_train,
+            mse_norm_test,
+            mae_norm_train,
+            mae_norm_test,
+            mape_train,
+            mape_test,
+            step,
+        )
+        return (
+            mse_norm_train,
+            mse_norm_test,
+            mae_norm_train,
+            mae_norm_test,
+            mape_train,
+            mape_test)
 
     # Testing with 2025 data
     def testRealData(self, X_test, Y_test, norm_price, step=-1) -> None:

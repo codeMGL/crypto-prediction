@@ -20,32 +20,159 @@ import utils.functions as utils
 # Guardar modelos en .csv (JSON)
 # [Unir y unificar datos en un solo archivo]
 
+#                      VERSION FINAL
+# --  Usar Tensorflow --
+# BTC price (and volume)
+# Fear and greed. Btc/Alt season
+# Regularización L1/L2
+# Probar StochasticGradientDescent (Actualmente usando BatchGradientDescent (entrenando con el lote completo))
+
 
 X_train, X_test, Y_train, Y_test = [], [], [], []
 
 # --- Hyperparameters ---
 # Percentage of data used in training
-DATA_SPLIT = 70  # 70%
-learning_rate = 0.004  # 0.03, 0.005 # Prev: 0.005
-training_steps = 3000  # 100, 5000   # Prev: 3000
+DATA_SPLIT = 95  # 70%
+learning_rate = 0.009  # 0.03, 0.005 # Prev: 0.005
+training_steps = 1000  # 100, 5000   # Prev: 3000
+
+
+def main2():
+    print("Running!")
+    # --- TRAIN NEW MODELS ---
+    X_train, X_test, Y_train, Y_test = utils.loadData(DATA_SPLIT)
+    X_train_norm, Y_train_norm, norm_price = utils.normalizeTrainData(X_train, Y_train)
+    X_test_norm, Y_test_norm = utils.normalizeTestData(X_test, Y_test, norm_price)
+    X_2025, Y_2025 = utils.loadRealData("data/ETH_1D_CMC.csv")
+    X_2025_norm, Y_2025_norm = utils.normalizeTestData(X_2025, Y_2025, norm_price)
+
+    # --- Creating the models ---
+    # More params/layers can cause overfitting
+    # layers0 = [X_train.shape[0], 8, 1]
+    layers1 = [X_train.shape[0], 8, 8, 1]
+    layers2 = [X_train.shape[0], 64, 32, 1] # Regular
+    layers3 = [X_train.shape[0], 64, 64, 32, 1] # Mejor
+    # layers4 = [X_train.shape[0], 32, 16, 1]
+    layers5 = [X_train.shape[0], 128, 128, 1] # Regular
+    # layers6 = [X_train.shape[0], 32, 32, 16, 1]
+    layers7 = [X_train.shape[0], 64, 64, 64, 1]  # Mejor
+    layers8 = [X_train.shape[0], 64, 64, 1]  # Regular-Bueno
+    # layers8 = [X_train.shape[0], 64, 32, 16, 1] MAL
+    # layers_arr = [layers0, layers1, layers2, layers3, layers4, layers5, layers6]
+    layers_arr = [layers3, layers7]
+    learning_rate = [0.001, 0.0001, 0.0008, 0.01, 0.03]
+    models_arr = []
+    print(f"Training {len(layers_arr)} models with {len(learning_rate)} different learning rates!")
+    # TRAINING 1000 steps, learning rate = 0.0008, layers = [9, 64, 64, 32, 1] BUENO
+    # TRAINING: 1000 steps, learning rate = 0.01, layers = [9, 64, 64, 32, 1] MUY BUENO (MAPE: 4-6)
+    # TRAINING: 1000 steps, learning rate = 0.03, layers = [9, 64, 64, 32, 1] BUENO, UN POCO DE OVERFIT
+
+    # TRAINING: 1000 steps, learning rate = 0.01, layers = [9, 64, 64, 64, 1] BUENO
+    # TRAINING: 1000 steps, learning rate = 0.03, layers = [9, 64, 64, 64, 1] MUY BUENO, UN POCO DE OVERFIT
+
+    data_num = X_train.shape[1]
+    # Training all models, one by one
+    for i in range(len(layers_arr)):
+        for lr in learning_rate:
+            model = NeuralNetwork(layers_arr[i], data_num, lr)
+            print(f"\n======== MODEL {i} ========")
+            print(
+                f"TRAINING: {training_steps} steps, learning rate = {lr}, layers = {layers_arr[i]}"
+            )
+
+            # --- Training the model ---
+            t0 = time.time()
+            model.train(
+                X_train_norm,
+                Y_train_norm,
+                X_test_norm,
+                Y_test_norm,
+                X_2025_norm,
+                Y_2025_norm,
+                norm_price,
+                training_steps,
+            )
+            print("-- FINAL TEST --")
+            errors = model.test(
+                X_train_norm, Y_train_norm, X_test_norm, Y_test_norm, X_2025_norm, Y_2025_norm, norm_price
+            )
+            errors = [round(float(err), 5) for err in errors]
+            t_f = time.time()
+            runningTime = round((t_f - t0) / 60, 2)
+            print(f"Training took {runningTime} minutes!")
+            models_arr.append({"model": model, "errors": errors, "t": runningTime, "lr": lr})
+    print("=" * 15, "END", "=" * 15)
+
+    # Prints all models
+    print(
+        f"\nERRORS (Test data):{" " * 25}mse_norm_train, mse_norm_test, mae_norm_train, mae_norm_test, mape_train, mape_test"
+    )
+    for i in range(len(models_arr)):
+        layers = models_arr[i]["model"].layers
+        formatting = " " * 3 * int(6 - len(layers))
+        print(i, layers, models_arr[i]["lr"], f"{models_arr[i]["t"]} mins", formatting, models_arr[i]["errors"])
+    print(models_arr)
+    # --- Option to save the model ---
+    print("MSE < 0.01        MAE < 0.03       MAPE < 10%    (1-5%; 85$)")
+    index = int(input("Choose a model to save: "))
+    save = input("\nDo you want to save the model: (Y/n) ")
+    if save.lower() == "y":
+        name = input("Write the model name (without the extension): ")
+        models_arr[index]["model"].saveModel(name, norm_price)
+
+    # Option to make a second training process ---
+    double_train = input(
+        f"\nWrite the new [low] learning rate used ({models_arr[index]["model"].lr}) or 'n': "
+    )
+    if double_train != "n":
+        models_arr[index]["model"].lr = float(double_train)
+        new_steps = int(input("Write the number of training steps [high]: "))
+        print(models_arr[index])
+        t0 = time.time()
+        models_arr[index]["model"].train(
+            X_train_norm,
+            Y_train_norm,
+            X_test_norm,
+            Y_test_norm,
+            X_2025_norm,
+            Y_2025_norm,
+            norm_price,
+            new_steps,
+        )
+        t_f = time.time()
+        print(f"Training took {np.round((t_f - t0) / 60, 2)} minutes!")
+
+        print("\nTEST WITH 2025 DATA:")
+        models_arr[index]["model"].testRealData(X_2025_norm, Y_2025_norm, norm_price)
+
+    # --- Option to save the new model ---
+    print("MSE < 0.01        MAE < 0.03       MAPE < 10%    (1-5%; 85$)")
+    save = input("\nDo you want to save the NEW model: (Y/n) ")
+    if save.lower() == "y":
+        name = input("Write the model name (without the extension): ")
+        models_arr[index]["model"].saveModel(name, norm_price)
 
 
 def main():
     # model_name = "good_MSE_0.05_MAE_0.07_1.txt"
     model_name = "med_mid_2.txt"
+    model_name = "model_MAPE__3_4_17.txt"
     print("-" * 10)
     # print("- Poder re-entrenar -")
     # print("Datos de varios dias")
     print("Probar diferente arquitectura y LR (varios a la vez)")
-    print("Probar otros datos")
-    print("-- Comparar predictions con el precio 2025 --")
+    print("Visualizar error con gráficas")
+    # print("Probar otros datos. Cuales?")
+    # print("-- Comparar predictions con el precio 2025 --")
     print(" HAY OVERFITTING? -> Test loss siempre baja. Raro // (Quitar precios 2021?)")
-    print("-- Comprobar que no hay data leakage --")
-    print("=== GUARDAR EN GITHUB === ")
+    # print("-- Comprobar que no hay data leakage --")
+    # print("=== GUARDAR EN GITHUB === ")
     print("Average price variation 2025: 85$ (Min: 0.2$, Max: 600$)")
     print("-" * 10, "\n")
 
     user_input = input(f"Do you want to load {model_name}? (Y/n) ").lower()
+    # print("USER_INPUT CHANGED!!!")
+    # user_input = "n"
     # Whether to create a new model or test a saved one
     if user_input == "n":
         # --- TRAIN NEW MODEL ---
@@ -60,14 +187,28 @@ def main():
             X_train, Y_train
         )
         X_test_norm, Y_test_norm = utils.normalizeTestData(X_test, Y_test, norm_price)
+        # print(X_train, "\nX train", X_train_norm)
+
+        # --- Loading train data (2025 prices) ---
+        X_2025, Y_2025 = utils.loadRealData("data/ETH_1D_CMC.csv")
+        X_2025_norm, Y_2025_norm = utils.normalizeTestData(X_2025, Y_2025, norm_price)
 
         # --- Creating the model ---
+        # More params/layers can cause overfitting
         # layers = [X_train.shape[0], 256, 256, 1]
         # layers = [X_train.shape[0], 64, 32, 1]
-        # layers = [X_train.shape[0], 64, 64, 32, 1]
-        layers = [X_train.shape[0], 32, 1] # Overfitting/Data leakage test
-        layers = [X_train.shape[0], 32, 16, 1]
-        # BUENA  MSE: 0.0007 MAE: 0.0220  | learning rate = 0.005, layers = [5, 64, 64, 32, 1]
+        # layers = [X_train.shape[0], 32, 16, 1]
+        # layers = [X_train.shape[0], 8, 8, 1]
+        # layers = [X_train.shape[0], 32, 32, 16, 1]
+        layers = [X_train.shape[0], 64, 64, 32, 1]
+
+        # TRAINING 1000 steps, learning rate = 0.0008, layers = [9, 64, 64, 32, 1] BUENO
+        # TRAINING: 1000 steps, learning rate = 0.01, layers = [9, 64, 64, 32, 1] MUY BUENO (MAPE: 4-6)
+        # TRAINING: 1000 steps, learning rate = 0.03, layers = [9, 64, 64, 32, 1] BUENO, UN POCO DE OVERFIT
+
+        # TRAINING: 1000 steps, learning rate = 0.01, layers = [9, 64, 64, 64, 1] BUENO
+        # TRAINING: 1000 steps, learning rate = 0.03, layers = [9, 64, 64, 64, 1] MUY BUENO, UN POCO DE OVERFIT
+        # Falta 0.005
 
         data_num = X_train.shape[1]
         model = NeuralNetwork(layers, data_num, learning_rate)
@@ -75,25 +216,25 @@ def main():
             f"\nTRAINING: {training_steps} steps, learning rate = {learning_rate}, layers = {layers}"
         )
 
-        # --- Training the model ---
+        # --- Training the model & testing with 2025 data ---
         t0 = time.time()
         model.train(
             X_train_norm,
             Y_train_norm,
             X_test_norm,
             Y_test_norm,
+            X_2025_norm,
+            Y_2025_norm,
             norm_price,
             training_steps,
         )
         t_f = time.time()
         print(f"Training took {np.round((t_f - t0) / 60, 2)} minutes!")
+        print("=" * 15, "END", "=" * 15)
 
-        # --- Predicting new data ---
+        # --- Predicting new data at the end ---
         print("\nTEST WITH 2025 DATA:")
-        X, Y = utils.loadRealData("data/ETH_1D_CMC.csv")
-        X_norm, Y_norm = utils.normalizeTestData(X, Y, norm_price)
-        # Predictions
-        model.testRealData(X_norm, Y_norm, norm_price)
+        model.testRealData(X_2025_norm, Y_2025_norm, norm_price)
 
         # --- Option to save the model ---
         print("MSE < 0.01        MAE < 0.03       MAPE < 10%    (1-5%; 85$)")
@@ -116,6 +257,8 @@ def main():
                 Y_train_norm,
                 X_test_norm,
                 Y_test_norm,
+                X_2025_norm,
+                Y_2025_norm,
                 norm_price,
                 new_steps,
             )
@@ -123,9 +266,7 @@ def main():
             print(f"Training took {np.round((t_f - t0) / 60, 2)} minutes!")
 
             print("\nTEST WITH 2025 DATA:")
-            X, Y = utils.loadRealData("data/ETH_1D_CMC.csv")
-            X_norm, Y_norm = utils.normalizeTestData(X, Y, norm_price)
-            model.testRealData(X_norm, Y_norm, norm_price)
+            model.testRealData(X_2025_norm, Y_2025_norm, norm_price)
 
         # --- Option to save the new model ---
         print("MSE < 0.01        MAE < 0.03       MAPE < 10%    (1-5%; 85$)")
@@ -133,7 +274,6 @@ def main():
         if save.lower() == "y":
             name = input("Write the model name (without the extension): ")
             model.saveModel(name, norm_price)
-
     else:
         # --- LOADING A SAVED MODEL ---
         # --- Loading data ---
@@ -148,14 +288,16 @@ def main():
 
         # --- Predicting real data ---
         # Loading and normalizing 2025 data
-        X, Y = utils.loadRealData("data/ETH_1D_CMC.csv")
-        X_norm, Y_norm = utils.normalizeTestData(X, Y, loaded_params["norm_price"])
+        X_2025, Y_2025 = utils.loadRealData("data/ETH_1D_CMC.csv")
+        X_2025_norm, Y_2025_norm = utils.normalizeTestData(
+            X_2025, Y_2025, loaded_params["norm_price"]
+        )
         # Predictions
         print("\nPREDICTIONS WITH 2025 DATA:")
         print(
             f"\nloaded_params {loaded_params.keys()}\nLoaded[norm_price]: {loaded_params["norm_price"]}\n"
         )
-        model.testRealData(X_norm, Y_norm, loaded_params["norm_price"])
+        model.testRealData(X_2025_norm, Y_2025_norm, loaded_params["norm_price"])
         print()
 
         # # Predict just one price
