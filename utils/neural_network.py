@@ -116,7 +116,7 @@ class NeuralNetwork:
         # print("b", self.b[0], self.b[1])
         return txt
 
-    def train(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, total_steps) -> None:
+    def train(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, total_steps, prevStepsCount = 0) -> None:
         t = time.time()
         for step in range(total_steps):
             self.feedForward(X_train)
@@ -124,7 +124,7 @@ class NeuralNetwork:
             # if (step - 1) % int(total_steps / 10) == 0:
             if step % (total_steps // 20) == 0 or step == total_steps - 1:
                 # Testing and ploting data
-                self.test(X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step - 1)
+                self.test(X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step - 1, prevStepsCount=prevStepsCount)
                 print(f"Time elapsed: {np.round(time.time() - t, 2)} seconds")
                 t = time.time()
 
@@ -197,7 +197,7 @@ class NeuralNetwork:
             self.b[n] -= self.lr * self.db[n + 1]
 
     # Tests model accuracy
-    def test(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step=-1) -> None:
+    def test(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step=-1, prevStepsCount = 0) -> None:
         # Verifying both on train and test data to prevent overfitting
 
         # Normalized predictions
@@ -288,7 +288,8 @@ class NeuralNetwork:
             mae_norm_test,
             mape_train,
             mape_test,
-            step,
+            mape_test2,
+            step + prevStepsCount,
         )
         return (
             mse_norm_train,

@@ -11,13 +11,44 @@ import utils.functions as utils
 
 # ---------------------------------------------------------------------
 #                       SOME TO-DOs and notes
-# To add new ETH prices, we need to preserve X_min and X_max
-# Graph errors and predictions
-# Export as JSON (even to re-download it later?)
+# To add new ETH prices, we need to preserve X_min and X_max --> ??
+
+# Data 2017-2024 Starting MAPE: 400% Why???
+# Graph errors and predictions without overloading data (not responding)
+# Add every error (include 2025 Test) to the graph
+# Add new artificial data
+# Search for data leaking
+# Add ALL the data the model needs to predict (includin in 2025)
+""" trained_w_2025_MAPE_3_14.txt
+--- Itineration 7498 ---
+Normalized (Train):   MSE: 0.0007       MAE: 0.0191
+Normalized (Test):    MSE: 0.0008       MAE: 0.0190
+Norm (Test 2025):     MSE: 0.0175       MAE: 0.1088 --> Very high
+Real scale (Train):   RMSE: 104.7396$   MAE: 77.2301$   MAPE: 3.6412%
+Real scale (Test):    RMSE: 114.3909$   MAE: 76.6764$   MAPE: 3.8678%
+Real (Test 2025):     RMSE: 534.6767$   MAE: 439.3730$   MAPE: 14.2091%
+"""
+
+print("-" * 10)
+# print("- Poder re-entrenar -")
+# print("Datos de varios dias")
+print("Probar diferente arquitectura y LR (varios a la vez)")
+print("Visualizar error con gráficas")
+# print("Probar otros datos. Cuales?")
+# print("-- Comparar predictions con el precio 2025 --")
+print(" HAY OVERFITTING? -> Test loss siempre baja. Raro // (Quitar precios 2021?)")
+# print("-- Comprobar que no hay data leakage --")
+# print("=== GUARDAR EN GITHUB === ")
+print("Average price variation 2025: 85$ (Min: 0.2$, Max: 600$)")
+print("-" * 10, "\n")
+
+
+# Ver notas computación para mejorar la función de activacion
+# Export model as JSON, not .txt (even to re-download it later?)
+# Guardar modelos en .csv (JSON)
 # Not currently storing "Date" on 'data' list
 # Add 'general info' prints to main.py
 # REFACTOR: all_headers vs. model_headers
-# Guardar modelos en .csv (JSON)
 # [Unir y unificar datos en un solo archivo]
 
 #                      VERSION FINAL
@@ -32,9 +63,9 @@ X_train, X_test, Y_train, Y_test = [], [], [], []
 
 # --- Hyperparameters ---
 # Percentage of data used in training
-DATA_SPLIT = 95  # 70%
-learning_rate = 0.009  # 0.03, 0.005 # Prev: 0.005
-training_steps = 1000  # 100, 5000   # Prev: 3000
+DATA_SPLIT = 80  # 70%
+learning_rate = 0.01  # 0.01, 0.005 # Prev: 0.005
+training_steps = 1000  # 1000, 5000   # Prev: 3000
 
 
 def main2():
@@ -138,6 +169,7 @@ def main2():
             Y_2025_norm,
             norm_price,
             new_steps,
+            prevStepsCount=training_steps
         )
         t_f = time.time()
         print(f"Training took {np.round((t_f - t0) / 60, 2)} minutes!")
@@ -154,21 +186,9 @@ def main2():
 
 
 def main():
-    # model_name = "good_MSE_0.05_MAE_0.07_1.txt"
-    model_name = "med_mid_2.txt"
     model_name = "model_MAPE__3_4_17.txt"
-    print("-" * 10)
-    # print("- Poder re-entrenar -")
-    # print("Datos de varios dias")
-    print("Probar diferente arquitectura y LR (varios a la vez)")
-    print("Visualizar error con gráficas")
-    # print("Probar otros datos. Cuales?")
-    # print("-- Comparar predictions con el precio 2025 --")
-    print(" HAY OVERFITTING? -> Test loss siempre baja. Raro // (Quitar precios 2021?)")
-    # print("-- Comprobar que no hay data leakage --")
-    # print("=== GUARDAR EN GITHUB === ")
-    print("Average price variation 2025: 85$ (Min: 0.2$, Max: 600$)")
-    print("-" * 10, "\n")
+    model_name = "trained_w_2025_MAPE_3_14.txt"
+
 
     user_input = input(f"Do you want to load {model_name}? (Y/n) ").lower()
     # print("USER_INPUT CHANGED!!!")
@@ -213,7 +233,7 @@ def main():
         data_num = X_train.shape[1]
         model = NeuralNetwork(layers, data_num, learning_rate)
         print(
-            f"\nTRAINING: {training_steps} steps, learning rate = {learning_rate}, layers = {layers}"
+            f"------\nTRAINING: {training_steps} steps, learning rate = {learning_rate}, layers = {layers}\n------"
         )
 
         # --- Training the model & testing with 2025 data ---
@@ -261,6 +281,7 @@ def main():
                 Y_2025_norm,
                 norm_price,
                 new_steps,
+                training_steps
             )
             t_f = time.time()
             print(f"Training took {np.round((t_f - t0) / 60, 2)} minutes!")

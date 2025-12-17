@@ -10,7 +10,8 @@ class Graph:
 
         # Real metrics (solo MAPE)
         self.mape = {"id": "MAPE", "train": [], "test": []}
-        self.real_metrics = [self.mape]
+        self.mape_2025 = {"id": "MAPE 2025", "train": [], "test": []}
+        self.real_metrics = [self.mape, self.mape_2025]
 
         # Líneas
         self.lines_norm = []
@@ -74,6 +75,7 @@ class Graph:
         mae_norm_test,
         mape_train,
         mape_test,
+        mape_2025,
         epoch=-1,
     ):
         # Añadir epoch una única vez
@@ -96,6 +98,9 @@ class Graph:
         # Añadir datos MAPE reales
         self.mape["train"].append(mape_train)
         self.mape["test"].append(mape_test)
+
+        self.mape_2025["train"].append(mape_2025)
+        self.mape_2025["test"].append(mape_2025)
 
         # Actualizar ambas gráficas
         self.update_lines(self.lines_norm, self.ax_norm)

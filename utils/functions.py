@@ -38,9 +38,11 @@ def loadData(DATA_SPLIT):
         "data/ETH_Day_2017-2024.csv",
         "data/ETH_Day_2021-2024.csv", #
         "data/ETH_Day_2024.csv", #
-        # "data/ETH_Day_2024-2025.csv",
+        "data/ETH_Day_2024-2025.csv",
     ]
     files = [ALL_FILES[2], ALL_FILES[3]]
+    # files = [ALL_FILES[1], ALL_FILES[3]] # ERROR/DEBUG: Initial MAPE > 400%
+    files = [ALL_FILES[2], ALL_FILES[4]]
     data = []
     for file in files:
         raw = pd.read_csv(file, sep=",", header=0)
@@ -194,30 +196,30 @@ def parseRealData(data):
                 else:
                     Y[i] = elt
 
-    # --- Getting price difference between 2 consecutive days in the RealData file (2025)
-    # price_diference, sum = [], 0
-    # for i in range(len(X)):
-    #     # Sanitazing output for 1 target. REFACTOR/DEBUG
-    #     Y_i = Y[i]
-    #     if isinstance(Y[i], np.ndarray) and len(Y[i]) == 1:
-    #         Y_i = Y[i][0]
-    #     diff = Y_i - X[i][0]
-    #     # print("Open", X[i][0], "Close", Y_i, "diff", diff)
-    #     price_diference.append(round(diff, 3))
-    #     sum += diff
-    # avg = np.round(sum / len(X), 5)
-    # print("\n-- Price difference BETWEEN WHAT???? between 2025 and itself data? --")
-    # # print("Price diff (close - open):", price_diference[:20])
-    # print(f"Max: {max(price_diference)}$  Min: {min(price_diference)}$  Average: {avg}$")
-    # # Abolute value
-    # sum = 0
-    # for i in range(len(price_diference)):
-    #     price_diference[i] = abs(price_diference[i])
-    #     sum += price_diference[i]
-    # avg = np.round(sum / len(X), 5)
-    # # print("\nPrice diff (Absolute values):", price_diference[:20])
-    # print("-- Price difference (Absolute values) --")
-    # print(f"Max: {max(price_diference)}$  Min: {min(price_diference)}$  Average: {avg}$")
+    # --- Getting price difference between 2 consecutive days in the ETH_1D_CMC (2025) file ---
+    price_diference, sum = [], 0
+    for i in range(len(X)):
+        # Sanitazing output for 1 target. REFACTOR/DEBUG
+        Y_i = Y[i]
+        if isinstance(Y[i], np.ndarray) and len(Y[i]) == 1:
+            Y_i = Y[i][0]
+        diff = Y_i - X[i][0]
+        # print("Open", X[i][0], "Close", Y_i, "diff", diff)
+        price_diference.append(round(diff, 3))
+        sum += diff
+    avg = np.round(sum / len(X), 5)
+    print("\n-- Price difference BETWEEN WHAT???? between 2025 and itself data? --")
+    # print("Price diff (close - open):", price_diference[:20])
+    print(f"Max: {max(price_diference)}$  Min: {min(price_diference)}$  Average: {avg}$")
+    # Abolute value
+    sum = 0
+    for i in range(len(price_diference)):
+        price_diference[i] = abs(price_diference[i])
+        sum += price_diference[i]
+    avg = np.round(sum / len(X), 5)
+    # print("\nPrice diff (Absolute values):", price_diference[:20])
+    print("-- Price difference (Absolute values) --")
+    print(f"Max: {max(price_diference)}$  Min: {min(price_diference)}$  Average: {avg}$")
 
     return X.T, Y.T
 
