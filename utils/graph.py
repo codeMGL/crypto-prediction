@@ -55,17 +55,40 @@ class Graph:
         self.ax_real.set_ylabel("Error (Real)")
         self.ax_real.grid(True)
 
+        i = 0
         for metric in self.real_metrics:
             (l_train,) = self.ax_real.plot(
-                [], [], color="cyan", linestyle="-", label=f"{metric['id']} Train"
+                [], [], color=colores[i], linestyle="-", label=f"{metric['id']} Train"
             )
             (l_test,) = self.ax_real.plot(
-                [], [], color="cyan", linestyle="--", label=f"{metric['id']} Test"
+                [], [], color=colores[i], linestyle="--", label=f"{metric['id']} Test"
             )
             self.lines_real.append(
                 {"line_train": l_train, "line_test": l_test, "data": metric}
             )
+            i += 1
         self.ax_real.legend()
+
+    def resetGraph(self):
+        # Normalized metrics
+        self.mse_norm = {"id": "MSE", "train": [], "test": []}
+        self.mae_norm = {"id": "MAE", "train": [], "test": []}
+        self.norm_metrics = [self.mse_norm, self.mae_norm]
+
+        # Real metrics (solo MAPE)
+        self.mape = {"id": "MAPE", "train": [], "test": []}
+        self.mape_2025 = {"id": "MAPE 2025", "train": [], "test": []}
+        self.real_metrics = [self.mape, self.mape_2025]
+
+        # Líneas
+        self.lines_norm = []
+        self.lines_real = []
+
+        # Solo un eje X global
+        self.epochs = []
+
+        # Reinitialize the graph visualization
+        self.initializeGraph()
 
     def updateAndPlot(
         self,
@@ -121,5 +144,5 @@ class Graph:
         ax.autoscale_view()
 
 
-# print("NO GRAPH!")
 graph = Graph()
+# graph = None

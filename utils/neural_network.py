@@ -116,15 +116,39 @@ class NeuralNetwork:
         # print("b", self.b[0], self.b[1])
         return txt
 
-    def train(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, total_steps, prevStepsCount = 0) -> None:
+    def train(
+        self,
+        X_train,
+        Y_train,
+        X_test,
+        Y_test,
+        X_test2,
+        Y_test2,
+        norm_price,
+        total_steps,
+        printErrors=10,
+        prevStepsCount=0,
+        showGraph=True,
+    ) -> None:
         t = time.time()
         for step in range(total_steps):
             self.feedForward(X_train)
             self.backwardsPropagation(Y_train)
             # if (step - 1) % int(total_steps / 10) == 0:
-            if step % (total_steps // 20) == 0 or step == total_steps - 1:
+            if step % (total_steps // printErrors) == 0 or step == total_steps - 1:
                 # Testing and ploting data
-                self.test(X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step - 1, prevStepsCount=prevStepsCount)
+                self.test(
+                    X_train,
+                    Y_train,
+                    X_test,
+                    Y_test,
+                    X_test2,
+                    Y_test2,
+                    norm_price,
+                    step - 1,
+                    prevStepsCount=prevStepsCount,
+                    showGraph=showGraph,
+                )
                 print(f"Time elapsed: {np.round(time.time() - t, 2)} seconds")
                 t = time.time()
 
@@ -197,7 +221,23 @@ class NeuralNetwork:
             self.b[n] -= self.lr * self.db[n + 1]
 
     # Tests model accuracy
-    def test(self, X_train, Y_train, X_test, Y_test, X_test2, Y_test2, norm_price, step=-1, prevStepsCount = 0) -> None:
+    def test(
+        self,
+        X_train,
+        Y_train,
+        X_test,
+        Y_test,
+        X_test2,
+        Y_test2,
+        norm_price,
+        step=-1,
+        prevStepsCount=0,
+        showGraph=True,
+    ) -> None:
+        """
+        All Xs and Ys are already normalised
+        """
+
         # Verifying both on train and test data to prevent overfitting
 
         # Normalized predictions
@@ -252,52 +292,96 @@ class NeuralNetwork:
         mae_real_test2 = np.mean(np.abs(Y_real_test2 - pred_real_test2))
         mape_test2 = (
             np.mean(
-                np.abs((Y_real_test2 - pred_real_test2) / (np.abs(Y_real_test2) + 1e-10))
+                np.abs(
+                    (Y_real_test2 - pred_real_test2) / (np.abs(Y_real_test2) + 1e-10)
+                )
             )
             * 100
         )
 
+        # Y_train is already normalised
+        r2_norm_train = 1 - (
+            np.sum((Y_train - pred_norm_train) ** 2)
+            / np.sum((Y_train - np.mean(Y_train)) ** 2)
+        )
+
+        r2_norm_test = 1 - (
+            np.sum((Y_test - pred_norm_test) ** 2)
+            / np.sum((Y_test - np.mean(Y_test)) ** 2)
+        )
+
+        r2_norm_test2 = 1 - (
+            np.sum((Y_test2 - pred_norm_test2) ** 2)
+            / np.sum((Y_test2 - np.mean(Y_test2)) ** 2)
+        )
+
+        # R² real (en escala original)
+        r2_real_train = 1 - (
+            np.sum((Y_real_train - pred_real_train) ** 2)
+            / np.sum((Y_real_train - np.mean(Y_real_train)) ** 2)
+        )
+
+        r2_real_test = 1 - (
+            np.sum((Y_real_test - pred_real_test) ** 2)
+            / np.sum((Y_real_test - np.mean(Y_real_test)) ** 2)
+        )
+
+        r2_real_test2 = 1 - (
+            np.sum((Y_real_test2 - pred_real_test2) ** 2)
+            / np.sum((Y_real_test2 - np.mean(Y_real_test2)) ** 2)
+        )
+
+        """
+        MSE: Penaliza más los errores grandes que el MAE, por lo que es sensible a valores atípicos
+        RMSE: Proporciona una métrica de error en las mismas unidades de la variable objetivo
+        MAE: Da una idea de cuánto se desvían las predicciones, en promedio
+        MAPE: Es útil para entender el error en términos relativos, especialmente cuando la variable objetivo tiene un rango amplio.
+        R^2: Varía entre 0 y 1 (aunque puede ser negativo para modelos muy malos), siendo valores más altos indicativos de mejor ajuste.
+        """
+
         if step != -1:
             print(f"\n--- Itineration {step} ---")
         print(
-            f"Normalized (Train):   MSE: {mse_norm_train:05.4f}       MAE: {mae_norm_train:05.4f}"
+            f"Normalized (Train):   MSE: {mse_norm_train:05.4f}       MAE: {mae_norm_train:05.4f}                 R^2: {r2_norm_train:05.4f}"
         )
         print(
-            f"Normalized (Test):    MSE: {mse_norm_test:05.4f}       MAE: {mae_norm_test:05.4f}"
+            f"Normalized (Test):    MSE: {mse_norm_test:05.4f}       MAE: {mae_norm_test:05.4f}                 R^2: {r2_norm_test:05.4f}"
         )
         print(
-            f"Norm (Test 2025):     MSE: {mse_norm_test2:05.4f}       MAE: {mae_norm_test2:05.4f}"
+            f"Norm (Test 2025):     MSE: {mse_norm_test2:05.4f}       MAE: {mae_norm_test2:05.4f}                 R^2: {r2_norm_test2:05.4f}"
         )
         print(
-            f"Real scale (Train):   RMSE: {rmse_real_train:05.4f}$   MAE: {mae_real_train:05.4f}$   MAPE: {mape_train:05.4f}%"
+            f"Real scale (Train):   RMSE: {rmse_real_train:05.4f}$   MAE: {mae_real_train:05.4f}$   MAPE: {mape_train:05.3f}%   R^2: {r2_real_train:05.3f}"
         )
         print(
-            f"Real scale (Test):    RMSE: {rmse_real_test:05.4f}$   MAE: {mae_real_test:05.4f}$   MAPE: {mape_test:05.4f}%"
+            f"Real scale (Test):    RMSE: {rmse_real_test:05.4f}$   MAE: {mae_real_test:05.4f}$   MAPE: {mape_test:05.3f}%   R^2: {r2_real_test:05.3f}"
         )
         print(
-            f"Real (Test 2025):     RMSE: {rmse_real_test2:05.4f}$   MAE: {mae_real_test2:05.4f}$   MAPE: {mape_test2:05.4f}%"
+            f"Real (Test 2025):     RMSE: {rmse_real_test2:05.4f}$   MAE: {mae_real_test2:05.4f}$   MAPE: {mape_test2:05.3f}%   R^2: {r2_real_test2:05.3f}"
         )
         if step == -1:
             print("MSE < 0.01      MAE < 0.03       MAPE < 10%")
 
-        # REFACTOR, no se pintan todos los errores
-        graph.updateAndPlot(
-            mse_norm_train,
-            mse_norm_test,
-            mae_norm_train,
-            mae_norm_test,
-            mape_train,
-            mape_test,
-            mape_test2,
-            step + prevStepsCount,
-        )
+        if showGraph:
+            # REFACTOR, no se pintan todos los errores
+            graph.updateAndPlot(
+                mse_norm_train,
+                mse_norm_test,
+                mae_norm_train,
+                mae_norm_test,
+                mape_train,
+                mape_test,
+                mape_test2,
+                step + prevStepsCount,
+            )
         return (
             mse_norm_train,
             mse_norm_test,
             mae_norm_train,
             mae_norm_test,
             mape_train,
-            mape_test)
+            mape_test,
+        )
 
     # Testing with 2025 data
     def testRealData(self, X_test, Y_test, norm_price, step=-1) -> None:
